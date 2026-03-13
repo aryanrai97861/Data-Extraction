@@ -128,11 +128,32 @@ export function extractWithRegex(text: string): ExtractedData {
 
   // ── 1. Inline "Label: Value" patterns ───────────────────────
 
-  // Name
+  // Name — labeled ("Name: Rahul Sharma")
   const nameMatch = text.match(
     /(?:^|\n)\s*(?:name|full\s*name)\s*[:：]\s*(.+)/i
   );
-  if (nameMatch) result.name = nameMatch[1].trim();
+  if (nameMatch) {
+    result.name = nameMatch[1].trim();
+  } else {
+    // Fallback: first non-empty line that looks like a person's name
+    // (2-5 words, mostly letters, starts with uppercase, not a section header)
+    const sectionSet = new Set(SECTION_HEADERS);
+    const lines = text.split(/\n/);
+    for (const line of lines.slice(0, 8)) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      // Skip lines that are section headers
+      if (sectionSet.has(trimmed.toLowerCase().replace(/[:：]\s*$/, ""))) continue;
+      // Skip lines with email, phone, URLs, or mostly numbers
+      if (/[@\d()+]/.test(trimmed)) continue;
+      if (/https?:\/\//.test(trimmed)) continue;
+      // A name is typically 2-5 words of letters (allow ., hyphens for initials)
+      if (/^[A-Z][a-zA-Z.\-']+(?:\s+[A-Za-z.\-']+){1,4}$/.test(trimmed)) {
+        result.name = trimmed;
+        break;
+      }
+    }
+  }
 
   // Email (labeled or first occurrence)
   const emailLabeled = text.match(
